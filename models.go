@@ -99,14 +99,14 @@ type NostrEvent struct {
 
 type Payment struct {
 	ID             uint `gorm:"primaryKey"`
-	AppId          uint `gorm:"index" validate:"required"`
+	AppId          uint `gorm:"index;index:idx_payment_sum" validate:"required"`
 	App            App  `gorm:"constraint:OnDelete:CASCADE"`
 	NostrEventId   uint `gorm:"index" validate:"required"`
 	NostrEvent     NostrEvent
-	Amount         uint
+	Amount         uint `gorm:"index:idx_payment_sum"`
 	PaymentRequest string
-	Preimage       string
-	CreatedAt      time.Time `gorm:"index"`
+	Preimage       string `gorm:"index:idx_payment_sum"`
+	CreatedAt      time.Time `gorm:"index:idx_payment_sum"`
 	UpdatedAt      time.Time
 }
 
