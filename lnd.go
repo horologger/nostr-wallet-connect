@@ -20,10 +20,10 @@ type LNClient interface {
 	GetBalance(ctx context.Context, senderPubkey string) (balance int64, err error)
 	MakeInvoice(ctx context.Context, senderPubkey string, amount int64, description string, descriptionHash string, expiry int64) (invoice string, paymentHash string, err error)
 	LookupInvoice(ctx context.Context, senderPubkey string, paymentHash string) (invoice string, paid bool, err error)
+	ListPayments(ctx context.Context, senderPubkey string, request *Nip47ListPaymentsParams) (response *Nip47ListPaymentsResponse, err error)
 }
 
 // wrap it again :sweat_smile:
-// todo: drop dependency on lndhub package
 type LNDService struct {
 	client *lnd.LNDWrapper
 	db     *gorm.DB
@@ -101,6 +101,18 @@ func (svc *LNDService) SendPaymentSync(ctx context.Context, senderPubkey, payReq
 		return "", err
 	}
 	return hex.EncodeToString(resp.PaymentPreimage), nil
+}
+
+func (svc *LNDService) ListPayments(ctx context.Context, senderPubkey string, params *Nip47ListPaymentsParams) (response *Nip47ListPaymentsResponse, err error) {
+	// TODO: support params
+	// listPaymentsResponse, err := svc.client.ListPayments(ctx, &lnrpc.ListPaymentsRequest{})
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	res := Nip47ListPaymentsResponse{payments: []Nip47Payment{}}
+
+	return &res, nil
 }
 
 func NewLNDService(ctx context.Context, svc *Service, e *echo.Echo) (result *LNDService, err error) {

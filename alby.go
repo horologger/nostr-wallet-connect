@@ -407,6 +407,18 @@ func (svc *AlbyOAuthService) SendPaymentSync(ctx context.Context, senderPubkey, 
 	return "", errors.New(errorPayload.Message)
 }
 
+func (svc *AlbyOAuthService) ListPayments(ctx context.Context, senderPubkey string, params *Nip47ListPaymentsParams) (response *Nip47ListPaymentsResponse, err error) {
+	// TODO: support params
+	// listPaymentsResponse, err := svc.client.ListPayments(ctx, &lnrpc.ListPaymentsRequest{})
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	res := Nip47ListPaymentsResponse{payments: []Nip47Payment{}}
+
+	return &res, nil
+}
+
 func (svc *AlbyOAuthService) AuthHandler(c echo.Context) error {
 	appName := c.QueryParam("c") // c - for client
 	// clear current session

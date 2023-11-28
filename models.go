@@ -15,6 +15,7 @@ const (
 	NIP_47_GET_BALANCE_METHOD         = "get_balance"
 	NIP_47_MAKE_INVOICE_METHOD        = "make_invoice"
 	NIP_47_LOOKUP_INVOICE_METHOD      = "lookup_invoice"
+	NIP_47_LIST_PAYMENTS_METHOD       = "list_payments"
 	NIP_47_ERROR_INTERNAL             = "INTERNAL"
 	NIP_47_ERROR_NOT_IMPLEMENTED      = "NOT_IMPLEMENTED"
 	NIP_47_ERROR_QUOTA_EXCEEDED       = "QUOTA_EXCEEDED"
@@ -39,6 +40,7 @@ var nip47MethodDescriptions = map[string]string{
 	NIP_47_PAY_INVOICE_METHOD:    "Send payments",
 	NIP_47_MAKE_INVOICE_METHOD:   "Create invoices",
 	NIP_47_LOOKUP_INVOICE_METHOD: "Lookup status of invoices",
+	NIP_47_LIST_PAYMENTS_METHOD:  "Read outgoing transaction history",
 }
 
 var nip47MethodIcons = map[string]string{
@@ -46,6 +48,7 @@ var nip47MethodIcons = map[string]string{
 	NIP_47_PAY_INVOICE_METHOD:    "lightning",
 	NIP_47_MAKE_INVOICE_METHOD:   "invoice",
 	NIP_47_LOOKUP_INVOICE_METHOD: "search",
+	NIP_47_LIST_PAYMENTS_METHOD:  "invoice", // TODO: replace
 }
 
 type AlbyMe struct {
@@ -206,4 +209,29 @@ type Nip47LookupInvoiceParams struct {
 type Nip47LookupInvoiceResponse struct {
 	Invoice string `json:"invoice"`
 	Paid    bool   `json:"paid"`
+}
+
+type Nip47ListPaymentsParams struct {
+	From   int64 `json:"from"`
+	Until  int64 `json:"until"`
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type Nip47Payment struct {
+	Invoice string `json:"invoice"`
+	// TODO:
+	//"payee_pubkey": "string", // pubkey of the payee, used for keysend
+	//"description": "string",
+	//"description_hash": "string",
+	//"preimage": "string",
+	//"payment_hash": "string",
+	//"amount": 123, // value in msats
+	//"fees_paid": 123, // value in msats
+	//"settled_at": unixtimestamp,
+	//"metadata": {} // generic metadata that can be used to add things like zap/boostagram details for a payer name/comment/etc.
+}
+
+type Nip47ListPaymentsResponse struct {
+	payments []Nip47Payment
 }
