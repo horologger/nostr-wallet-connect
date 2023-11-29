@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/davrux/echo-logrus/v4 v4.0.3
+	github.com/go-gormigrate/gormigrate/v2 v2.1.1
 	github.com/gorilla/sessions v1.2.1
 	github.com/labstack/echo-contrib v0.14.1
 	github.com/labstack/echo/v4 v4.10.2
@@ -55,7 +56,6 @@ require (
 	github.com/fergusstrange/embedded-postgres v1.19.0 // indirect
 	github.com/glebarez/go-sqlite v1.20.3 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
-	github.com/go-gormigrate/gormigrate/v2 v2.1.1 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-macaroon-bakery/macaroonpb v1.0.0 // indirect
@@ -186,7 +186,6 @@ require (
 )
 
 require (
-	github.com/SaveTheRbtz/generic-sync-map-go v0.0.0-20220414055132-a37292614db8 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.2 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.0.1 // indirect
@@ -198,8 +197,7 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/lightningnetwork/lnd v0.15.5-beta.rc2
 	github.com/mattn/go-sqlite3 v1.14.17 // indirect
-	github.com/sirupsen/logrus v1.9.0
-	github.com/valyala/fastjson v1.6.3 // indirect
+	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53 // indirect
 	gorm.io/driver/postgres v1.5.2
 )
