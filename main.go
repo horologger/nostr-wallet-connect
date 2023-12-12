@@ -141,6 +141,12 @@ func main() {
 	ctx, _ = signal.NotifyContext(ctx, os.Interrupt)
 	var wg sync.WaitGroup
 	switch cfg.LNBackendType {
+	case StrikeBackendType:
+		strikeClient, err := NewStrikeOauthService(svc, e)
+		if err != nil {
+			svc.Logger.Fatal(err)
+		}
+		svc.lnClient = strikeClient
 	case LNDBackendType:
 		lndClient, err := NewLNDService(ctx, svc, e)
 		if err != nil {

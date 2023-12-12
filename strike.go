@@ -15,19 +15,19 @@ import (
 	"gorm.io/gorm"
 )
 
-type AlbyOAuthService struct {
+type StrikeOAuthService struct {
 	cfg       *Config
 	oauthConf *oauth2.Config
 	db        *gorm.DB
 	Logger    *logrus.Logger
 }
 
-func NewAlbyOauthService(svc *Service, e *echo.Echo) (result *AlbyOAuthService, err error) {
+func NewStrikeOauthService(svc *Service, e *echo.Echo) (result *StrikeOAuthService, err error) {
 	conf := &oauth2.Config{
 		ClientID:     svc.cfg.ClientId,
 		ClientSecret: svc.cfg.ClientSecret,
-		//Todo: do we really need all these permissions?
-		Scopes: []string{"account:read", "payments:send", "invoices:read", "transactions:read", "invoices:create", "balance:read"},
+		Scopes: []string{"partner.invoice.read"},
+		// Scopes: []string{"partner.account.profile.read", "partner.balances.read", "partner.payment-quote.lightning.create", "partner.payment-quote.execute"},
 		Endpoint: oauth2.Endpoint{
 			TokenURL:  svc.cfg.OAuthTokenUrl,
 			AuthURL:   svc.cfg.OAuthAuthUrl,
@@ -36,20 +36,20 @@ func NewAlbyOauthService(svc *Service, e *echo.Echo) (result *AlbyOAuthService, 
 		RedirectURL: svc.cfg.OAuthRedirectUrl,
 	}
 
-	albySvc := &AlbyOAuthService{
+	strikeSvc := &StrikeOAuthService{
 		cfg:       svc.cfg,
 		oauthConf: conf,
 		db:        svc.db,
 		Logger:    svc.Logger,
 	}
 
-	e.GET("/alby/auth", albySvc.AuthHandler)
-	e.GET("/alby/callback", albySvc.CallbackHandler)
+	e.GET("/strike/auth", strikeSvc.AuthHandler)
+	e.GET("/api/auth/callback/strike", strikeSvc.CallbackHandler)
 
-	return albySvc, err
+	return strikeSvc, err
 }
 
-func (svc *AlbyOAuthService) FetchUserToken(ctx context.Context, app App) (token *oauth2.Token, err error) {
+func (svc *StrikeOAuthService) FetchUserToken(ctx context.Context, app App) (token *oauth2.Token, err error) {
 	user := app.User
 	tok, err := svc.oauthConf.TokenSource(ctx, &oauth2.Token{
 		AccessToken:  user.AccessToken,
@@ -77,7 +77,7 @@ func (svc *AlbyOAuthService) FetchUserToken(ctx context.Context, app App) (token
 	return tok, nil
 }
 
-func (svc *AlbyOAuthService) MakeInvoice(ctx context.Context, senderPubkey string, amount int64, description string, descriptionHash string, expiry int64) (invoice string, paymentHash string, err error) {
+func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey string, amount int64, description string, descriptionHash string, expiry int64) (invoice string, paymentHash string, err error) {
 	// TODO: move to a shared function
 	app := App{}
 	err = svc.db.Preload("User").First(&app, &App{
@@ -191,7 +191,7 @@ func (svc *AlbyOAuthService) MakeInvoice(ctx context.Context, senderPubkey strin
 	return "", "", errors.New(errorPayload.Message)
 }
 
-func (svc *AlbyOAuthService) LookupInvoice(ctx context.Context, senderPubkey string, paymentHash string) (invoice string, paid bool, err error) {
+func (svc *StrikeOAuthService) LookupInvoice(ctx context.Context, senderPubkey string, paymentHash string) (invoice string, paid bool, err error) {
 	// TODO: move to a shared function
 	app := App{}
 	err = svc.db.Preload("User").First(&app, &App{
@@ -269,7 +269,7 @@ func (svc *AlbyOAuthService) LookupInvoice(ctx context.Context, senderPubkey str
 	return "", false, errors.New(errorPayload.Message)
 }
 
-func (svc *AlbyOAuthService) GetBalance(ctx context.Context, senderPubkey string) (balance int64, err error) {
+func (svc *StrikeOAuthService) GetBalance(ctx context.Context, senderPubkey string) (balance int64, err error) {
 	app := App{}
 	err = svc.db.Preload("User").First(&app, &App{
 		NostrPubkey: senderPubkey,
@@ -329,7 +329,7 @@ func (svc *AlbyOAuthService) GetBalance(ctx context.Context, senderPubkey string
 	return 0, errors.New(errorPayload.Message)
 }
 
-func (svc *AlbyOAuthService) SendPaymentSync(ctx context.Context, senderPubkey, payReq string) (preimage string, err error) {
+func (svc *StrikeOAuthService) SendPaymentSync(ctx context.Context, senderPubkey, payReq string) (preimage string, err error) {
 	app := App{}
 	err = svc.db.Preload("User").First(&app, &App{
 		NostrPubkey: senderPubkey,
@@ -407,7 +407,7 @@ func (svc *AlbyOAuthService) SendPaymentSync(ctx context.Context, senderPubkey, 
 	return "", errors.New(errorPayload.Message)
 }
 
-func (svc *AlbyOAuthService) AuthHandler(c echo.Context) error {
+func (svc *StrikeOAuthService) AuthHandler(c echo.Context) error {
 	appName := c.QueryParam("c") // c - for client
 	// clear current session
 	sess, _ := session.Get(CookieName, c)
@@ -420,13 +420,22 @@ func (svc *AlbyOAuthService) AuthHandler(c echo.Context) error {
 		}
 		sess.Save(c.Request(), c.Response())
 	}
+	
+	cv := oauth2.GenerateVerifier()
 
-	url := svc.oauthConf.AuthCodeURL(appName) // pass on the appName as state
+	url := svc.oauthConf.AuthCodeURL(
+			appName,
+			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+			oauth2.SetAuthURLParam("code_challenge", oauth2.S256ChallengeFromVerifier(cv)),
+	)
+
 	return c.Redirect(302, url)
 }
 
-func (svc *AlbyOAuthService) CallbackHandler(c echo.Context) error {
+func (svc *StrikeOAuthService) CallbackHandler(c echo.Context) error {
+	fmt.Println("heyyy")
 	code := c.QueryParam("code")
+	fmt.Println(code)
 	tok, err := svc.oauthConf.Exchange(c.Request().Context(), code)
 	if err != nil {
 		svc.Logger.WithError(err).Error("Failed to exchange token")

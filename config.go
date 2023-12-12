@@ -1,9 +1,10 @@
 package main
 
 const (
-	AlbyBackendType = "ALBY"
-	LNDBackendType  = "LND"
-	CookieName      = "alby_nwc_session"
+	AlbyBackendType   = "ALBY"
+	LNDBackendType    = "LND"
+	StrikeBackendType = "STRIKE"
+	CookieName        = "alby_nwc_session"
 )
 
 type Config struct {
@@ -17,12 +18,12 @@ type Config struct {
 	LNDAddress              string `envconfig:"LND_ADDRESS"`
 	LNDCertFile             string `envconfig:"LND_CERT_FILE"`
 	LNDMacaroonFile         string `envconfig:"LND_MACAROON_FILE"`
-	AlbyAPIURL              string `envconfig:"ALBY_API_URL" default:"https://api.getalby.com"`
-	AlbyClientId            string `envconfig:"ALBY_CLIENT_ID"`
-	AlbyClientSecret        string `envconfig:"ALBY_CLIENT_SECRET"`
+	ClientId                string `envconfig:"CLIENT_ID"`
+	ClientSecret            string `envconfig:"CLIENT_SECRET"`
+	OAuthAPIURL             string `envconfig:"OAUTH_API_URL"`
 	OAuthRedirectUrl        string `envconfig:"OAUTH_REDIRECT_URL"`
-	OAuthAuthUrl            string `envconfig:"OAUTH_AUTH_URL" default:"https://getalby.com/oauth"`
-	OAuthTokenUrl           string `envconfig:"OAUTH_TOKEN_URL" default:"https://api.getalby.com/oauth/token"`
+	OAuthAuthUrl            string `envconfig:"OAUTH_AUTH_URL"`
+	OAuthTokenUrl           string `envconfig:"OAUTH_TOKEN_URL"`
 	Port                    string `envconfig:"PORT" default:"8080"`
 	DatabaseUri             string `envconfig:"DATABASE_URI" default:"nostr-wallet-connect.db"`
 	DatabaseMaxConns        int    `envconfig:"DATABASE_MAX_CONNS" default:"10"`
