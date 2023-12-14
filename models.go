@@ -121,15 +121,38 @@ type PayRequest struct {
 	Invoice string `json:"invoice"`
 }
 
+type StrikePayRequest struct {
+	LnInvoice      string `json:"lnInvoice"`
+	SourceCurrency string `json:"sourceCurrency"`
+}
+
 type BalanceResponse struct {
 	Balance  int64  `json:"balance"`
 	Currency string `json:"currency"`
 	Unit     string `json:"unit"`
 }
 
+type StrikeBalanceResponse struct {
+	Currency   string `json:"currency"`
+	Outgoing   string `json:"outgoing"`
+	Available  string `json:"available"`
+	Total      string `json:"total"`
+}
+
 type PayResponse struct {
 	Preimage    string `json:"payment_preimage"`
 	PaymentHash string `json:"payment_hash"`
+}
+
+type StrikePaymentQuoteResponse struct {
+	PaymentQuoteId string `json:"paymentQuoteId"`
+}
+
+type StrikePaymentResponse struct {
+	PaymentId string `json:"paymentId"`
+	State     string `json:"state"`
+	Completed string `json:"completed"`
+	Delivered string `json:"delivered"`
 }
 
 type MakeInvoiceRequest struct {
@@ -152,6 +175,16 @@ type ErrorResponse struct {
 	Error   bool   `json:"error"`
 	Code    int    `json:"code"`
 	Message string `json:"message"`
+}
+
+type StrikeError struct {
+	Status  bool   `json:"status"`
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+type StrikeErrorResponse struct {
+	Data  StrikeError `json:"data"`
 }
 
 type Identity struct {
