@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip04"
-	decodepay "github.com/nbd-wtf/ln-decodepay"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
@@ -26,8 +26,10 @@ type Service struct {
 var supportedMethods = map[string]bool{
 	NIP_47_PAY_INVOICE_METHOD:    true,
 	NIP_47_GET_BALANCE_METHOD:    true,
+	NIP_47_GET_INFO_METHOD:       true,
 	NIP_47_MAKE_INVOICE_METHOD:   true,
 	NIP_47_LOOKUP_INVOICE_METHOD: true,
+	NIP_47_PAY_KEYSEND_METHOD:    true,
 }
 
 func (svc *Service) GetUser(c echo.Context) (user *User, err error) {
@@ -201,12 +203,16 @@ func (svc *Service) HandleEvent(ctx context.Context, event *nostr.Event) (result
 	switch nip47Request.Method {
 	case NIP_47_PAY_INVOICE_METHOD:
 		return svc.HandlePayInvoiceEvent(ctx, nip47Request, event, app, ss)
+	case NIP_47_PAY_KEYSEND_METHOD:
+		return svc.HandlePayKeysendEvent(ctx, nip47Request, event, app, ss)
 	case NIP_47_GET_BALANCE_METHOD:
 		return svc.HandleGetBalanceEvent(ctx, nip47Request, event, app, ss)
 	case NIP_47_MAKE_INVOICE_METHOD:
 		return svc.HandleMakeInvoiceEvent(ctx, nip47Request, event, app, ss)
 	case NIP_47_LOOKUP_INVOICE_METHOD:
 		return svc.HandleLookupInvoiceEvent(ctx, nip47Request, event, app, ss)
+	case NIP_47_GET_INFO_METHOD:
+		return svc.HandleGetInfoEvent(ctx, nip47Request, event, app, ss)
 	default:
 		return svc.createResponse(event, Nip47Response{
 			ResultType: nip47Request.Method,
@@ -240,7 +246,23 @@ func (svc *Service) createResponse(initialEvent *nostr.Event, content interface{
 	return resp, nil
 }
 
-func (svc *Service) hasPermission(app *App, event *nostr.Event, requestMethod string, paymentRequest *decodepay.Bolt11) (result bool, code string, message string) {
+func (svc *Service) GetMethods(app *App) []string {
+	appPermissions := []AppPermission{}
+	findPermissionsResult := svc.db.Find(&appPermissions, &AppPermission{
+		AppId: app.ID,
+	})
+	if findPermissionsResult.RowsAffected == 0 {
+		// No permissions created for this app. It can do anything
+		return strings.Split(NIP_47_CAPABILITIES, ",")
+	}
+	requestMethods := make([]string, 0, len(appPermissions))
+	for _, appPermission := range appPermissions {
+		requestMethods = append(requestMethods, appPermission.RequestMethod)
+	}
+	return requestMethods
+}
+
+func (svc *Service) hasPermission(app *App, event *nostr.Event, requestMethod string, amount int64) (result bool, code string, message string) {
 	// find all permissions for the app
 	appPermissions := []AppPermission{}
 	findPermissionsResult := svc.db.Find(&appPermissions, &AppPermission{
@@ -282,7 +304,7 @@ func (svc *Service) hasPermission(app *App, event *nostr.Event, requestMethod st
 		if maxAmount != 0 {
 			budgetUsage := svc.GetBudgetUsage(&appPermission)
 
-			if budgetUsage+paymentRequest.MSatoshi/1000 > int64(maxAmount) {
+			if budgetUsage+amount/1000 > int64(maxAmount) {
 				return false, NIP_47_ERROR_QUOTA_EXCEEDED, "Insufficient budget remaining to make payment"
 			}
 		}

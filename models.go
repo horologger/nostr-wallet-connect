@@ -13,8 +13,10 @@ const (
 	NIP_47_RESPONSE_KIND              = 23195
 	NIP_47_PAY_INVOICE_METHOD         = "pay_invoice"
 	NIP_47_GET_BALANCE_METHOD         = "get_balance"
+	NIP_47_GET_INFO_METHOD            = "get_info"
 	NIP_47_MAKE_INVOICE_METHOD        = "make_invoice"
 	NIP_47_LOOKUP_INVOICE_METHOD      = "lookup_invoice"
+	NIP_47_PAY_KEYSEND_METHOD         = "pay_keysend"
 	NIP_47_ERROR_INTERNAL             = "INTERNAL"
 	NIP_47_ERROR_NOT_IMPLEMENTED      = "NOT_IMPLEMENTED"
 	NIP_47_ERROR_QUOTA_EXCEEDED       = "QUOTA_EXCEEDED"
@@ -23,7 +25,7 @@ const (
 	NIP_47_ERROR_EXPIRED              = "EXPIRED"
 	NIP_47_ERROR_RESTRICTED           = "RESTRICTED"
 	NIP_47_OTHER                      = "OTHER"
-	NIP_47_CAPABILITIES               = "pay_invoice,get_balance"
+	NIP_47_CAPABILITIES               = "pay_invoice,pay_keysend,get_balance,get_info,make_invoice,lookup_invoice"
 )
 
 const (
@@ -36,6 +38,7 @@ const (
 
 var nip47MethodDescriptions = map[string]string{
 	NIP_47_GET_BALANCE_METHOD:    "Read your balance",
+	NIP_47_GET_INFO_METHOD:       "Read your node info",
 	NIP_47_PAY_INVOICE_METHOD:    "Send payments",
 	NIP_47_MAKE_INVOICE_METHOD:   "Create invoices",
 	NIP_47_LOOKUP_INVOICE_METHOD: "Lookup status of invoices",
@@ -43,11 +46,13 @@ var nip47MethodDescriptions = map[string]string{
 
 var nip47MethodIcons = map[string]string{
 	NIP_47_GET_BALANCE_METHOD:    "wallet",
+	NIP_47_GET_INFO_METHOD:       "wallet",
 	NIP_47_PAY_INVOICE_METHOD:    "lightning",
 	NIP_47_MAKE_INVOICE_METHOD:   "invoice",
 	NIP_47_LOOKUP_INVOICE_METHOD: "search",
 }
 
+// TODO: move to models/Alby
 type AlbyMe struct {
 	Identifier       string `json:"identifier"`
 	NPub             string `json:"nostr_pubkey"`
@@ -121,9 +126,11 @@ type PayRequest struct {
 	Invoice string `json:"invoice"`
 }
 
-type StrikePayRequest struct {
-	LnInvoice      string `json:"lnInvoice"`
-	SourceCurrency string `json:"sourceCurrency"`
+// TODO: move to models/Alby
+type KeysendRequest struct {
+	Amount        int64             `json:"amount"`
+	Destination   string            `json:"destination"`
+	CustomRecords map[string]string `json:"custom_records,omitempty"`
 }
 
 type BalanceResponse struct {
@@ -132,27 +139,9 @@ type BalanceResponse struct {
 	Unit     string `json:"unit"`
 }
 
-type StrikeBalanceResponse struct {
-	Currency   string `json:"currency"`
-	Outgoing   string `json:"outgoing"`
-	Available  string `json:"available"`
-	Total      string `json:"total"`
-}
-
 type PayResponse struct {
 	Preimage    string `json:"payment_preimage"`
 	PaymentHash string `json:"payment_hash"`
-}
-
-type StrikePaymentQuoteResponse struct {
-	PaymentQuoteId string `json:"paymentQuoteId"`
-}
-
-type StrikePaymentResponse struct {
-	PaymentId string `json:"paymentId"`
-	State     string `json:"state"`
-	Completed string `json:"completed"`
-	Delivered string `json:"delivered"`
 }
 
 type MakeInvoiceRequest struct {
@@ -177,14 +166,14 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
-type StrikeError struct {
-	Status  bool   `json:"status"`
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
-type StrikeErrorResponse struct {
-	Data  StrikeError `json:"data"`
+// TODO: move to models/LNClient
+type NodeInfo struct {
+	Alias       string
+	Color       string
+	Pubkey      string
+	Network     string
+	BlockHeight uint32
+	BlockHash   string
 }
 
 type Identity struct {
@@ -192,6 +181,7 @@ type Identity struct {
 	Privkey string
 }
 
+// TODO: move to models/Nip47
 type Nip47Request struct {
 	Method string          `json:"method"`
 	Params json.RawMessage `json:"params"`
@@ -214,10 +204,34 @@ type Nip47PayParams struct {
 type Nip47PayResponse struct {
 	Preimage string `json:"preimage"`
 }
+
+type Nip47KeysendParams struct {
+	Amount     int64       `json:"amount"`
+	Pubkey     string      `json:"pubkey"`
+	Preimage   string      `json:"preimage"`
+	TLVRecords []TLVRecord `json:"tlv_records"`
+}
+
+type TLVRecord struct {
+	Type  uint64 `json:"type"`
+	Value string `json:"value"`
+}
+
 type Nip47BalanceResponse struct {
 	Balance       int64  `json:"balance"`
 	MaxAmount     int    `json:"max_amount"`
 	BudgetRenewal string `json:"budget_renewal"`
+}
+
+// TODO: move to models/Nip47
+type Nip47GetInfoResponse struct {
+	Alias       string   `json:"alias"`
+	Color       string   `json:"color"`
+	Pubkey      string   `json:"pubkey"`
+	Network     string   `json:"network"`
+	BlockHeight uint32   `json:"block_height"`
+	BlockHash   string   `json:"block_hash"`
+	Methods     []string `json:"methods"`
 }
 
 type Nip47MakeInvoiceParams struct {
@@ -239,4 +253,37 @@ type Nip47LookupInvoiceParams struct {
 type Nip47LookupInvoiceResponse struct {
 	Invoice string `json:"invoice"`
 	Paid    bool   `json:"paid"`
+}
+
+type StrikePayRequest struct {
+	LnInvoice      string `json:"lnInvoice"`
+	SourceCurrency string `json:"sourceCurrency"`
+}
+
+type StrikeBalanceResponse struct {
+	Currency  string `json:"currency"`
+	Outgoing  string `json:"outgoing"`
+	Available string `json:"available"`
+	Total     string `json:"total"`
+}
+
+type StrikePaymentQuoteResponse struct {
+	PaymentQuoteId string `json:"paymentQuoteId"`
+}
+
+type StrikePaymentResponse struct {
+	PaymentId string `json:"paymentId"`
+	State     string `json:"state"`
+	Completed string `json:"completed"`
+	Delivered string `json:"delivered"`
+}
+
+type StrikeError struct {
+	Status  bool   `json:"status"`
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+type StrikeErrorResponse struct {
+	Data StrikeError `json:"data"`
 }
