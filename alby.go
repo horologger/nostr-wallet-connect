@@ -474,7 +474,7 @@ func (svc *AlbyOAuthService) SendKeysend(ctx context.Context, senderPubkey strin
 	err = json.NewEncoder(body).Encode(payload)
 
 	// here we don't use the preimage from params
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/payments/keysend", svc.cfg.AlbyAPIURL), body)
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/payments/keysend", svc.cfg.OAuthAPIURL), body)
 	if err != nil {
 		svc.Logger.WithError(err).Error("Error creating request /payments/keysend")
 		return "", err

@@ -30,7 +30,7 @@ func NewStrikeOauthService(svc *Service, e *echo.Echo) (result *StrikeOAuthServi
 	conf := &oauth2.Config{
 		ClientID:     svc.cfg.ClientId,
 		ClientSecret: svc.cfg.ClientSecret,
-		Scopes: []string{"offline_access", "partner.account.profile.read", "partner.balances.read", "partner.payment-quote.lightning.create", "partner.payment-quote.execute"},
+		Scopes:       []string{"offline_access", "partner.account.profile.read", "partner.balances.read", "partner.payment-quote.lightning.create", "partner.payment-quote.execute"},
 		Endpoint: oauth2.Endpoint{
 			TokenURL:  svc.cfg.OAuthTokenUrl,
 			AuthURL:   svc.cfg.OAuthAuthUrl,
@@ -79,6 +79,14 @@ func (svc *StrikeOAuthService) FetchUserToken(ctx context.Context, app App) (tok
 		return nil, err
 	}
 	return tok, nil
+}
+
+func (*StrikeOAuthService) GetInfo(ctx context.Context, senderPubkey string) (info *NodeInfo, err error) {
+	return nil, errors.New("not implemented")
+}
+
+func (*StrikeOAuthService) SendKeysend(ctx context.Context, senderPubkey string, amount int64, destination string, preimage string, custom_records []TLVRecord) (preImage string, err error) {
+	return "", errors.New("not implemented")
 }
 
 func (svc *StrikeOAuthService) LookupInvoice(ctx context.Context, senderPubkey string, paymentHash string) (invoice string, paid bool, err error) {
@@ -288,16 +296,16 @@ func (svc *StrikeOAuthService) AuthHandler(c echo.Context) error {
 			sess.Options.Domain = svc.cfg.CookieDomain
 		}
 	}
-	
+
 	cv := oauth2.GenerateVerifier()
 
 	sess.Values["code_verifier"] = cv
 	sess.Save(c.Request(), c.Response())
 
 	url := svc.oauthConf.AuthCodeURL(
-			appName,
-			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
-			oauth2.SetAuthURLParam("code_challenge", oauth2.S256ChallengeFromVerifier(cv)),
+		appName,
+		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+		oauth2.SetAuthURLParam("code_challenge", oauth2.S256ChallengeFromVerifier(cv)),
 	)
 
 	return c.Redirect(302, url)
@@ -308,9 +316,9 @@ func (svc *StrikeOAuthService) CallbackHandler(c echo.Context) error {
 	sess, _ := session.Get(CookieName, c)
 	cv, ok := sess.Values["code_verifier"].(string)
 	if !ok {
-			err := errors.New("Code verifier not found in session")
-			svc.Logger.WithError(err)
-			return err
+		err := errors.New("Code verifier not found in session")
+		svc.Logger.WithError(err)
+		return err
 	}
 	tok, err := svc.oauthConf.Exchange(
 		c.Request().Context(),
