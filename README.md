@@ -175,3 +175,24 @@ You can also contribute to our [bounty program](https://github.com/getAlby/light
 ❌ `multi_pay_invoice (TBC)`
 
 ❌ `multi_pay_keysend (TBC)`
+
+### Strike OAuth API
+
+✅ `get_balance`
+
+⚠️ `pay_invoice`
+- ⚠️ preimage in response missing
+
+❌ `get_info`
+
+❌ `pay_keysend`
+
+❌ `make_invoice`
+
+❌ `lookup_invoice`
+
+❌ `list_transactions`
+
+❌ `multi_pay_invoice (TBC)`
+
+❌ `multi_pay_keysend (TBC)`
