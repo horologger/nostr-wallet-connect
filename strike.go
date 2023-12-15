@@ -118,12 +118,8 @@ func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey str
 	}
 
 	correlationId := uuid.New()
-	fmt.Println(correlationId)
 	// amount provided in msat, but Strike API currently only supports BTC value.
 	amountBTC := (float64(amount) / math.Pow(10, 11)) // 3 + 8
-	fmt.Println("amountBTC")
-	fmt.Println(amountBTC)
-	fmt.Println(amount)
 	if amount < 0 {
 		svc.Logger.WithFields(logrus.Fields{
 			"senderPubkey":    senderPubkey,
