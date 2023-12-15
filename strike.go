@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/golang-jwt/jwt"
+	"github.com/google/uuid"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
@@ -30,7 +31,7 @@ func NewStrikeOauthService(svc *Service, e *echo.Echo) (result *StrikeOAuthServi
 	conf := &oauth2.Config{
 		ClientID:     svc.cfg.ClientId,
 		ClientSecret: svc.cfg.ClientSecret,
-		Scopes:       []string{"offline_access", "partner.account.profile.read", "partner.balances.read", "partner.payment-quote.lightning.create", "partner.payment-quote.execute"},
+		Scopes:       []string{"offline_access", "partner.account.profile.read", "partner.balances.read", "partner.payment-quote.lightning.create", "partner.payment-quote.execute", "partner.invoice.create", "partner.invoice.quote.generate"},
 		Endpoint: oauth2.Endpoint{
 			TokenURL:  svc.cfg.OAuthTokenUrl,
 			AuthURL:   svc.cfg.OAuthAuthUrl,
@@ -82,7 +83,14 @@ func (svc *StrikeOAuthService) FetchUserToken(ctx context.Context, app App) (tok
 }
 
 func (*StrikeOAuthService) GetInfo(ctx context.Context, senderPubkey string) (info *NodeInfo, err error) {
-	return nil, errors.New("not implemented")
+	return &NodeInfo{
+		Alias:       "strike.com",
+		Color:       "",
+		Pubkey:      "",
+		Network:     "mainnet",
+		BlockHeight: 0,
+		BlockHash:   "",
+	}, errors.New("not implemented")
 }
 
 func (*StrikeOAuthService) SendKeysend(ctx context.Context, senderPubkey string, amount int64, destination string, preimage string, custom_records []TLVRecord) (preImage string, err error) {
@@ -94,7 +102,168 @@ func (svc *StrikeOAuthService) LookupInvoice(ctx context.Context, senderPubkey s
 }
 
 func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey string, amount int64, description string, descriptionHash string, expiry int64) (invoice string, paymentHash string, err error) {
-	return "", "", errors.New("not implemented")
+	app := App{}
+	err = svc.db.Preload("User").First(&app, &App{
+		NostrPubkey: senderPubkey,
+	}).Error
+	if err != nil {
+		svc.Logger.WithFields(logrus.Fields{
+			"senderPubkey":    senderPubkey,
+			"amount":          amount,
+			"description":     description,
+			"descriptionHash": descriptionHash,
+			"expiry":          expiry,
+		}).Errorf("App not found: %v", err)
+		return "", "", err
+	}
+
+	correlationId := uuid.New()
+	fmt.Println(correlationId)
+	// amount provided in msat, but Strike API currently only supports BTC value.
+	amountBTC := (float64(amount) / math.Pow(10, 11)) // 3 + 8
+	fmt.Println("amountBTC")
+	fmt.Println(amountBTC)
+	fmt.Println(amount)
+	if amount < 0 {
+		svc.Logger.WithFields(logrus.Fields{
+			"senderPubkey":    senderPubkey,
+			"amount":          amount,
+			"description":     description,
+			"descriptionHash": descriptionHash,
+			"expiry":          expiry,
+		}).Errorf("amount must be 1000 msat or greater")
+		return "", "", errors.New("amount must be 1000 msat or greater")
+	}
+
+	svc.Logger.WithFields(logrus.Fields{
+		"senderPubkey":    senderPubkey,
+		"amount":          amount,
+		"description":     description,
+		"descriptionHash": descriptionHash,
+		"expiry":          expiry,
+		"appId":           app.ID,
+		"userId":          app.User.ID,
+	}).Info("Processing make invoice request")
+	tok, err := svc.FetchUserToken(ctx, app)
+	if err != nil {
+		return "", "", err
+	}
+	client := svc.oauthConf.Client(ctx, tok)
+
+	body := bytes.NewBuffer([]byte{})
+	payloadAmount := &StrikeAmount{
+		Amount:   amountBTC,
+		Currency: "BTC",
+	}
+	payload := &StrikeInvoiceQuoteRequest{
+		Amount:        *payloadAmount,
+		Description:   description,
+		CorrelationId: correlationId.String(),
+	}
+	err = json.NewEncoder(body).Encode(payload)
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/invoices", svc.cfg.OAuthAPIURL), body)
+	if err != nil {
+		svc.Logger.WithError(err).Error("Error creating request /invoices")
+		return "", "", err
+	}
+
+	req.Header.Set("User-Agent", "NWC")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		svc.Logger.WithFields(logrus.Fields{
+			"senderPubkey":    senderPubkey,
+			"amount":          amount,
+			"description":     description,
+			"descriptionHash": descriptionHash,
+			"expiry":          expiry,
+			"appId":           app.ID,
+			"userId":          app.User.ID,
+		}).Errorf("Failed to make invoice: %v", err)
+		return "", "", err
+	}
+
+	if resp.StatusCode >= 300 {
+		errorPayload := &StrikeErrorResponse{}
+		err = json.NewDecoder(resp.Body).Decode(errorPayload)
+		svc.Logger.WithFields(logrus.Fields{
+			"senderPubkey":    senderPubkey,
+			"amount":          amount,
+			"description":     description,
+			"descriptionHash": descriptionHash,
+			"expiry":          expiry,
+			"appId":           app.ID,
+			"userId":          app.User.ID,
+			"APIHttpStatus":   resp.StatusCode,
+		}).Errorf("Make invoice failed %s", string(errorPayload.Data.Message))
+		return "", "", errors.New(errorPayload.Data.Message)
+	}
+
+	responsePayload := &StrikeInvoiceQuoteResponse{}
+	err = json.NewDecoder(resp.Body).Decode(responsePayload)
+	if err != nil {
+		return "", "", err
+	}
+
+	req, err = http.NewRequest("POST", fmt.Sprintf("%s/invoices/%s/quote", svc.cfg.OAuthAPIURL, responsePayload.InvoiceId), nil)
+	if err != nil {
+		svc.Logger.WithError(err).Errorf("Error creating request /invoices/%s/quote", responsePayload.InvoiceId)
+		return "", "", err
+	}
+
+	req.Header.Set("User-Agent", "NWC")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err = client.Do(req)
+	if err != nil {
+		svc.Logger.WithFields(logrus.Fields{
+			"senderPubkey":    senderPubkey,
+			"amount":          amount,
+			"description":     description,
+			"descriptionHash": descriptionHash,
+			"expiry":          expiry,
+			"appId":           app.ID,
+			"userId":          app.User.ID,
+		}).Errorf("Failed to make invoice: %v", err)
+		return "", "", err
+	}
+
+	if resp.StatusCode < 300 {
+		responsePayload := &StrikeMakeInvoiceResponse{}
+		err = json.NewDecoder(resp.Body).Decode(responsePayload)
+		if err != nil {
+			return "", "", err
+		}
+		svc.Logger.WithFields(logrus.Fields{
+			"senderPubkey":    senderPubkey,
+			"amount":          amount,
+			"description":     description,
+			"descriptionHash": descriptionHash,
+			"expiry":          expiry,
+			"appId":           app.ID,
+			"userId":          app.User.ID,
+			"paymentRequest":  responsePayload.LnInvoice,
+			"paymentHash":     "paymentHash",
+		}).Info("Make invoice successful")
+		// Payment hash is unsupported
+		return responsePayload.LnInvoice, "paymentHash", nil
+	}
+
+	errorPayload := &StrikeErrorResponse{}
+	err = json.NewDecoder(resp.Body).Decode(errorPayload)
+	svc.Logger.WithFields(logrus.Fields{
+		"senderPubkey":    senderPubkey,
+		"amount":          amount,
+		"description":     description,
+		"descriptionHash": descriptionHash,
+		"expiry":          expiry,
+		"appId":           app.ID,
+		"userId":          app.User.ID,
+		"APIHttpStatus":   resp.StatusCode,
+	}).Errorf("Make invoice failed %s", string(errorPayload.Data.Message))
+	return "", "", errors.New(errorPayload.Data.Message)
 }
 
 func (svc *StrikeOAuthService) GetBalance(ctx context.Context, senderPubkey string) (balance int64, err error) {

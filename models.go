@@ -260,6 +260,27 @@ type StrikePayRequest struct {
 	SourceCurrency string `json:"sourceCurrency"`
 }
 
+type StrikeAmount struct {
+	Amount   float64 `json:"amount"`
+	Currency string  `json:"currency"`
+}
+
+type StrikeInvoiceQuoteRequest struct {
+	CorrelationId string       `json:"correlationId"`
+	Description   string       `json:"description"`
+	Amount        StrikeAmount `json:"amount"`
+}
+
+type StrikeInvoiceQuoteResponse struct {
+	InvoiceId string `json:"invoiceId"`
+}
+
+type StrikeMakeInvoiceResponse struct {
+	QuoteId   string `json:"quoteId"`
+	LnInvoice string `json:"lnInvoice"`
+	Expiry    int64  `json:"expirationInSec"`
+}
+
 type StrikeBalanceResponse struct {
 	Currency  string `json:"currency"`
 	Outgoing  string `json:"outgoing"`

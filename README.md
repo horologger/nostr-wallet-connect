@@ -180,14 +180,21 @@ You can also contribute to our [bounty program](https://github.com/getAlby/light
 
 ✅ `get_balance`
 
+⚠️ `get_info`
+- ⚠️ block_hash not supported
+- ⚠️ block_height not supported
+- ⚠️ pubkey not supported
+- ⚠️ color not supported
+- ⚠️ network is always `mainnet`
+
 ⚠️ `pay_invoice`
 - ⚠️ preimage in response missing
 
-❌ `get_info`
+⚠️ `make_invoice`
+- ⚠️ expiry in request not supported
+- ⚠️ paymentHash in response missing (TODO)
 
 ❌ `pay_keysend`
-
-❌ `make_invoice`
 
 ❌ `lookup_invoice`
 
