@@ -1,13 +1,11 @@
 package main
 
 import (
-	"embed"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"html/template"
 	"io"
-	"io/fs"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -26,12 +24,6 @@ import (
 	ddEcho "gopkg.in/DataDog/dd-trace-go.v1/contrib/labstack/echo.v4"
 	"gorm.io/gorm"
 )
-
-//go:embed public/*
-var embeddedAssets embed.FS
-
-//go:embed views/*
-var embeddedViews embed.FS
 
 type TemplateRegistry struct {
 	templates map[string]*template.Template
@@ -58,9 +50,9 @@ func (svc *Service) RegisterSharedRoutes(e *echo.Echo) {
 	e.Use(session.Middleware(sessions.NewCookieStore([]byte(svc.cfg.CookieSecret))))
 	e.Use(ddEcho.Middleware(ddEcho.WithServiceName("nostr-wallet-connect")))
 
-	assetSubdir, _ := fs.Sub(embeddedAssets, "public")
-	assetHandler := http.FileServer(http.FS(assetSubdir))
-	e.GET("/public/*", echo.WrapHandler(http.StripPrefix("/public/", assetHandler)))
+	// assetSubdir, _ := fs.Sub(embeddedAssets, "public")
+	// assetHandler := http.FileServer(http.FS(assetSubdir))
+	// e.GET("/public/*", echo.WrapHandler(http.StripPrefix("/public/", assetHandler)))
 	e.GET("/api/getCSRFToken", svc.CSRFHandler)
 	e.GET("/api/apps", svc.AppsListHandler)
 	e.GET("/api/apps/:pubkey", svc.AppsShowHandler)

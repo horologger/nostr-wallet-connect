@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useUser } from "../context/UserContext";
 import { useEffect } from "react";
+import {Start} from "../../wailsjs/go/main/Wailsapp"
 
 function Login() {
   const { info } = useUser()
@@ -11,6 +12,11 @@ function Login() {
       navigate('/');
     }
   }, [navigate, info?.user]);
+
+
+  function start() {
+    Start();
+  }
 
   return(
     <div className="text-center">
@@ -25,6 +31,8 @@ function Login() {
       <h1 className="font-headline text-3xl sm:text-4xl mb-2 dark:text-white">
         Nostr Wallet Connect
       </h1>
+
+      <div onClick={start}>Ready? 🙂</div>
 
       <h2 className="text-md text-gray-700 dark:text-neutral-300">
         Securely connect your Alby Account to Nostr clients and applications.

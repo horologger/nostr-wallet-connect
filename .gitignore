@@ -6,5 +6,7 @@ node_modules
 nostr-wallet-connect
 nwc.db
 
+build
+
 frontend/dist
 frontend/node_modules
