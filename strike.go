@@ -100,12 +100,12 @@ func (*StrikeOAuthService) SendKeysend(ctx context.Context, senderPubkey string,
 
 func (svc *StrikeOAuthService) ListTransactions(ctx context.Context, senderPubkey string, from, until, limit, offset uint64, unpaid bool, invoiceType string) (transactions []Nip47Transaction, err error) {
 	// return empty array for now
-	return transactions, nil
+	return []Nip47Transaction{}, nil
 }
 
 func (svc *StrikeOAuthService) LookupInvoice(ctx context.Context, senderPubkey string, paymentHash string) (transaction *Nip47Transaction, err error) {
 	// return empty transaction for now
-	return transaction, nil
+	return &Nip47Transaction{}, nil
 }
 
 func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey string, amount int64, description string, descriptionHash string, expiry int64) (transaction *Nip47Transaction, err error) {
