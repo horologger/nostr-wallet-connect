@@ -123,6 +123,8 @@ You can also contribute to our [bounty program](https://github.com/getAlby/light
 
 ✅ NIP-47 info event
 
+❌ `expiration` tag in requests
+
 ### LND
 
 ✅ `get_info`
@@ -130,19 +132,19 @@ You can also contribute to our [bounty program](https://github.com/getAlby/light
 ✅ `get_balance`
 
 ✅ `pay_invoice`
+- ⚠️ amount not supported (for amountless invoices)
 
 ✅ `pay_keysend`
 
-⚠️ `make_invoice`
-- ⚠️ invoice in response missing (TODO)
+✅ `make_invoice`
 
-⚠️ `lookup_invoice`
-- ⚠️ invoice in response missing (TODO)
-- ⚠️ response does not match spec, missing fields
+✅ `lookup_invoice`
 
-❌ `list_transactions`
+✅ `list_transactions`
+- ⚠️ from and until in request not supported
+- ⚠️ failed payments will not be returned
 
-❌ `multi_pay_invoice (TBC)`
+❌ `multi_pay_invoice`
 
 ❌ `multi_pay_keysend (TBC)`
 
@@ -158,21 +160,23 @@ You can also contribute to our [bounty program](https://github.com/getAlby/light
 ✅ `get_balance`
 
 ✅ `pay_invoice`
+- ⚠️ amount not supported (for amountless invoices)
 
 ✅ `pay_keysend`
 - ⚠️ preimage in request not supported
 
-⚠️ `make_invoice`
+✅ `make_invoice`
 - ⚠️ expiry in request not supported
-- ⚠️ invoice in response missing (TODO)
 
-⚠️ `lookup_invoice`
-- ⚠️ invoice in response missing (TODO)
-- ⚠️ response does not match spec, missing fields (TODO)
+✅ `lookup_invoice`
+- ⚠️ fees_paid in response not supported
 
-❌ `list_transactions`
+✅ `list_transactions`
+- ⚠️ offset and unpaid in request not supported
+- ⚠️ fees_paid in response not supported
+- ⚠️ unsettled and failed transactions will not be returned
 
-❌ `multi_pay_invoice (TBC)`
+❌ `multi_pay_invoice`
 
 ❌ `multi_pay_keysend (TBC)`
 
