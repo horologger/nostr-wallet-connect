@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
@@ -97,11 +98,17 @@ func (*StrikeOAuthService) SendKeysend(ctx context.Context, senderPubkey string,
 	return "", errors.New("not implemented")
 }
 
-func (svc *StrikeOAuthService) LookupInvoice(ctx context.Context, senderPubkey string, paymentHash string) (invoice string, paid bool, err error) {
-	return "", false, errors.New("not implemented")
+func (svc *StrikeOAuthService) ListTransactions(ctx context.Context, senderPubkey string, from, until, limit, offset uint64, unpaid bool, invoiceType string) (transactions []Nip47Transaction, err error) {
+	// return empty array for now
+	return transactions, nil
 }
 
-func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey string, amount int64, description string, descriptionHash string, expiry int64) (invoice string, paymentHash string, err error) {
+func (svc *StrikeOAuthService) LookupInvoice(ctx context.Context, senderPubkey string, paymentHash string) (transaction *Nip47Transaction, err error) {
+	// return empty transaction for now
+	return transaction, nil
+}
+
+func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey string, amount int64, description string, descriptionHash string, expiry int64) (transaction *Nip47Transaction, err error) {
 	app := App{}
 	err = svc.db.Preload("User").First(&app, &App{
 		NostrPubkey: senderPubkey,
@@ -114,7 +121,7 @@ func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey str
 			"descriptionHash": descriptionHash,
 			"expiry":          expiry,
 		}).Errorf("App not found: %v", err)
-		return "", "", err
+		return nil, err
 	}
 
 	correlationId := uuid.New()
@@ -128,7 +135,7 @@ func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey str
 			"descriptionHash": descriptionHash,
 			"expiry":          expiry,
 		}).Errorf("amount must be 1000 msat or greater")
-		return "", "", errors.New("amount must be 1000 msat or greater")
+		return nil, errors.New("amount must be 1000 msat or greater")
 	}
 
 	svc.Logger.WithFields(logrus.Fields{
@@ -142,7 +149,7 @@ func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey str
 	}).Info("Processing make invoice request")
 	tok, err := svc.FetchUserToken(ctx, app)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 	client := svc.oauthConf.Client(ctx, tok)
 
@@ -161,7 +168,7 @@ func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey str
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s/invoices", svc.cfg.OAuthAPIURL), body)
 	if err != nil {
 		svc.Logger.WithError(err).Error("Error creating request /invoices")
-		return "", "", err
+		return nil, err
 	}
 
 	req.Header.Set("User-Agent", "NWC")
@@ -178,7 +185,7 @@ func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey str
 			"appId":           app.ID,
 			"userId":          app.User.ID,
 		}).Errorf("Failed to make invoice: %v", err)
-		return "", "", err
+		return nil, err
 	}
 
 	if resp.StatusCode >= 300 {
@@ -194,19 +201,19 @@ func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey str
 			"userId":          app.User.ID,
 			"APIHttpStatus":   resp.StatusCode,
 		}).Errorf("Make invoice failed %s", string(errorPayload.Data.Message))
-		return "", "", errors.New(errorPayload.Data.Message)
+		return nil, errors.New(errorPayload.Data.Message)
 	}
 
 	responsePayload := &StrikeInvoiceQuoteResponse{}
 	err = json.NewDecoder(resp.Body).Decode(responsePayload)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
 	req, err = http.NewRequest("POST", fmt.Sprintf("%s/invoices/%s/quote", svc.cfg.OAuthAPIURL, responsePayload.InvoiceId), nil)
 	if err != nil {
 		svc.Logger.WithError(err).Errorf("Error creating request /invoices/%s/quote", responsePayload.InvoiceId)
-		return "", "", err
+		return nil, err
 	}
 
 	req.Header.Set("User-Agent", "NWC")
@@ -223,14 +230,14 @@ func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey str
 			"appId":           app.ID,
 			"userId":          app.User.ID,
 		}).Errorf("Failed to make invoice: %v", err)
-		return "", "", err
+		return nil, err
 	}
 
 	if resp.StatusCode < 300 {
 		responsePayload := &StrikeMakeInvoiceResponse{}
 		err = json.NewDecoder(resp.Body).Decode(responsePayload)
 		if err != nil {
-			return "", "", err
+			return nil, err
 		}
 		svc.Logger.WithFields(logrus.Fields{
 			"senderPubkey":    senderPubkey,
@@ -244,7 +251,16 @@ func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey str
 			"paymentHash":     "paymentHash",
 		}).Info("Make invoice successful")
 		// Payment hash is unsupported
-		return responsePayload.LnInvoice, "paymentHash", nil
+		expiresAt := time.Unix(responsePayload.Expiry, 0)
+		return &Nip47Transaction{
+			Type:            "incoming",
+			Invoice:         responsePayload.LnInvoice,
+			Description:     description,
+			DescriptionHash: descriptionHash,
+			PaymentHash:     "paymentHash",
+			ExpiresAt:       &expiresAt,
+			Amount:          amount,
+		}, nil
 	}
 
 	errorPayload := &StrikeErrorResponse{}
@@ -259,7 +275,7 @@ func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey str
 		"userId":          app.User.ID,
 		"APIHttpStatus":   resp.StatusCode,
 	}).Errorf("Make invoice failed %s", string(errorPayload.Data.Message))
-	return "", "", errors.New(errorPayload.Data.Message)
+	return nil, errors.New(errorPayload.Data.Message)
 }
 
 func (svc *StrikeOAuthService) GetBalance(ctx context.Context, senderPubkey string) (balance int64, err error) {

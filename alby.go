@@ -404,7 +404,7 @@ func (svc *AlbyOAuthService) ListTransactions(ctx context.Context, senderPubkey 
 		endpoint += "/outgoing"
 	}
 
-	requestUrl := fmt.Sprintf("%s%s?%s", svc.cfg.AlbyAPIURL, endpoint, urlParams.Encode())
+	requestUrl := fmt.Sprintf("%s%s?%s", svc.cfg.OAuthAPIURL, endpoint, urlParams.Encode())
 
 	req, err := http.NewRequest("GET", requestUrl, nil)
 	if err != nil {
