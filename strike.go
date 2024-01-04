@@ -90,7 +90,7 @@ func (*StrikeOAuthService) GetInfo(ctx context.Context, senderPubkey string) (in
 		Network:     "mainnet",
 		BlockHeight: 0,
 		BlockHash:   "",
-	}, errors.New("not implemented")
+	}, nil
 }
 
 func (*StrikeOAuthService) SendKeysend(ctx context.Context, senderPubkey string, amount int64, destination string, preimage string, custom_records []TLVRecord) (preImage string, err error) {
