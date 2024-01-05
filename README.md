@@ -198,9 +198,12 @@ You can also contribute to our [bounty program](https://github.com/getAlby/light
 - ⚠️ expiry in request not supported
 - ⚠️ paymentHash in response missing (TODO)
 
-❌ `pay_keysend`
+⚠️ `lookup_invoice`
+- ⚠️ paymentHash in request not supported (takes in invoiceId)
+- ⚠️ only description, amount and createdAt are returned in response
+- ⚠️ settledAt is wrong but is only set when it is settled
 
-❌ `lookup_invoice`
+❌ `pay_keysend`
 
 ❌ `list_transactions`
 

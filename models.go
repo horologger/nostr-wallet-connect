@@ -318,8 +318,8 @@ type StrikePayRequest struct {
 }
 
 type StrikeAmount struct {
-	Amount   float64 `json:"amount"`
-	Currency string  `json:"currency"`
+	Amount   string `json:"amount"`
+	Currency string `json:"currency"`
 }
 
 type StrikeInvoiceQuoteRequest struct {
@@ -330,6 +330,14 @@ type StrikeInvoiceQuoteRequest struct {
 
 type StrikeInvoiceQuoteResponse struct {
 	InvoiceId string `json:"invoiceId"`
+}
+
+type StrikeLookupInvoiceResponse struct {
+	Amount      StrikeAmount `json:"amount"`
+	Created     string       `json:"created"`
+	Description string       `json:"description"`
+	InvoiceId   string       `json:"invoiceId"`
+	State       string       `json:"state"`
 }
 
 type StrikeMakeInvoiceResponse struct {

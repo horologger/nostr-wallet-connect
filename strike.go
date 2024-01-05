@@ -32,7 +32,7 @@ func NewStrikeOauthService(svc *Service, e *echo.Echo) (result *StrikeOAuthServi
 	conf := &oauth2.Config{
 		ClientID:     svc.cfg.ClientId,
 		ClientSecret: svc.cfg.ClientSecret,
-		Scopes:       []string{"offline_access", "partner.account.profile.read", "partner.balances.read", "partner.payment-quote.lightning.create", "partner.payment-quote.execute", "partner.invoice.create", "partner.invoice.quote.generate"},
+		Scopes:       []string{"offline_access", "partner.account.profile.read", "partner.balances.read", "partner.invoice.read", "partner.invoice.create", "partner.invoice.quote.generate", "partner.payment-quote.lightning.create", "partner.payment-quote.execute"},
 		Endpoint: oauth2.Endpoint{
 			TokenURL:  svc.cfg.OAuthTokenUrl,
 			AuthURL:   svc.cfg.OAuthAuthUrl,
@@ -104,8 +104,95 @@ func (svc *StrikeOAuthService) ListTransactions(ctx context.Context, senderPubke
 }
 
 func (svc *StrikeOAuthService) LookupInvoice(ctx context.Context, senderPubkey string, paymentHash string) (transaction *Nip47Transaction, err error) {
-	// return empty transaction for now
-	return &Nip47Transaction{}, nil
+	// TODO: move to a shared function
+	app := App{}
+	err = svc.db.Preload("User").First(&app, &App{
+		NostrPubkey: senderPubkey,
+	}).Error
+	if err != nil {
+		svc.Logger.WithFields(logrus.Fields{
+			"senderPubkey": senderPubkey,
+			"paymentHash":  paymentHash,
+		}).Errorf("App not found: %v", err)
+		return nil, err
+	}
+
+	svc.Logger.WithFields(logrus.Fields{
+		"senderPubkey": senderPubkey,
+		"paymentHash":  paymentHash,
+		"appId":        app.ID,
+		"userId":       app.User.ID,
+	}).Info("Processing lookup invoice request")
+	tok, err := svc.FetchUserToken(ctx, app)
+	if err != nil {
+		return nil, err
+	}
+	client := svc.oauthConf.Client(ctx, tok)
+
+	// paymentHash is actually invoiceId
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/invoices/%s", svc.cfg.OAuthAPIURL, paymentHash), nil)
+	if err != nil {
+		svc.Logger.WithError(err).Errorf("Error creating request /invoices/%s", paymentHash)
+		return nil, err
+	}
+
+	req.Header.Set("User-Agent", "NWC")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		svc.Logger.WithFields(logrus.Fields{
+			"senderPubkey": senderPubkey,
+			"appId":        app.ID,
+			"userId":       app.User.ID,
+		}).Errorf("Failed to lookup invoice: %v", err)
+		return nil, err
+	}
+
+	if resp.StatusCode < 300 {
+		responsePayload := &StrikeLookupInvoiceResponse{}
+		err = json.NewDecoder(resp.Body).Decode(responsePayload)
+		if err != nil {
+			return nil, err
+		}
+		svc.Logger.WithFields(logrus.Fields{
+			"senderPubkey": senderPubkey,
+			"paymentHash":  paymentHash,
+			"appId":        app.ID,
+			"userId":       app.User.ID,
+			"settled":      responsePayload.State == "PAID",
+		}).Info("Lookup invoice successful")
+
+		createdAt, _ := time.Parse(time.RFC3339, responsePayload.Created)
+		amountInBTC, _ := strconv.ParseFloat(responsePayload.Amount.Amount, 64)
+		transaction = &Nip47Transaction{
+			// TODO: replace with bolt11 (currently not returned in response)
+			Invoice:     "sampleinvoice",
+			Description: responsePayload.Description,
+			PaymentHash: paymentHash,
+			Preimage:    "samplepreimage",
+			Amount:      int64(amountInBTC * math.Pow(10, 8)),
+			CreatedAt:   createdAt,
+		}
+
+		if responsePayload.State == "PAID" {
+			// TODO: replace with actual settledAt (currently not returned in response)
+			timeNow := time.Now()
+			transaction.SettledAt = &timeNow
+		}
+		fmt.Println(transaction)
+		return transaction, nil
+	}
+
+	errorPayload := &StrikeErrorResponse{}
+	err = json.NewDecoder(resp.Body).Decode(errorPayload)
+	svc.Logger.WithFields(logrus.Fields{
+		"senderPubkey":  senderPubkey,
+		"paymentHash":   paymentHash,
+		"appId":         app.ID,
+		"userId":        app.User.ID,
+		"APIHttpStatus": resp.StatusCode,
+	}).Errorf("Lookup invoice failed %s", string(errorPayload.Data.Message))
+	return nil, errors.New(errorPayload.Data.Message)
 }
 
 func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey string, amount int64, description string, descriptionHash string, expiry int64) (transaction *Nip47Transaction, err error) {
@@ -155,7 +242,7 @@ func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey str
 
 	body := bytes.NewBuffer([]byte{})
 	payloadAmount := &StrikeAmount{
-		Amount:   amountBTC,
+		Amount:   strconv.FormatFloat(amountBTC, 'f', -1, 64),
 		Currency: "BTC",
 	}
 	payload := &StrikeInvoiceQuoteRequest{
@@ -210,9 +297,11 @@ func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey str
 		return nil, err
 	}
 
-	req, err = http.NewRequest("POST", fmt.Sprintf("%s/invoices/%s/quote", svc.cfg.OAuthAPIURL, responsePayload.InvoiceId), nil)
+	// this is similar to paymentHash
+	invoiceId := responsePayload.InvoiceId
+	req, err = http.NewRequest("POST", fmt.Sprintf("%s/invoices/%s/quote", svc.cfg.OAuthAPIURL, invoiceId), nil)
 	if err != nil {
-		svc.Logger.WithError(err).Errorf("Error creating request /invoices/%s/quote", responsePayload.InvoiceId)
+		svc.Logger.WithError(err).Errorf("Error creating request /invoices/%s/quote", invoiceId)
 		return nil, err
 	}
 
@@ -226,6 +315,7 @@ func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey str
 			"amount":          amount,
 			"description":     description,
 			"descriptionHash": descriptionHash,
+			"invoiceId":       invoiceId,
 			"expiry":          expiry,
 			"appId":           app.ID,
 			"userId":          app.User.ID,
@@ -248,7 +338,8 @@ func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey str
 			"appId":           app.ID,
 			"userId":          app.User.ID,
 			"paymentRequest":  responsePayload.LnInvoice,
-			"paymentHash":     "paymentHash",
+			"invoiceId":       invoiceId,
+			// "paymentHash":     "paymentHash",
 		}).Info("Make invoice successful")
 		// Payment hash is unsupported
 		expiresAt := time.Unix(responsePayload.Expiry, 0)
@@ -257,9 +348,10 @@ func (svc *StrikeOAuthService) MakeInvoice(ctx context.Context, senderPubkey str
 			Invoice:         responsePayload.LnInvoice,
 			Description:     description,
 			DescriptionHash: descriptionHash,
-			PaymentHash:     "paymentHash",
-			ExpiresAt:       &expiresAt,
-			Amount:          amount,
+			// Passing invoiceId as paymentHash for now
+			PaymentHash: invoiceId,
+			ExpiresAt:   &expiresAt,
+			Amount:      amount,
 		}, nil
 	}
 
